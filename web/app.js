@@ -125,10 +125,12 @@ function renderSetup() {
     el('saved-redirect').textContent = SETUP.redirect_uri;
     if (SETUP.verified && !el('test-result').textContent) showTest({ result: SETUP.verified, message: SETUP.verified === 'valid' ? `Last test: ${NAME} accepted these keys.` : SETUP.verified === 'invalid' ? `Last test: ${NAME} did not accept these keys. Replace them.` : 'Last test could not confirm the keys.' });
   }
-  for (const li of document.querySelectorAll('.hl-step')) li.classList.toggle('done', saved && +li.dataset.step < 5);
+  const good = saved && SETUP.verified !== 'invalid';
+  for (const li of document.querySelectorAll('.hl-step')) li.classList.toggle('done', good && +li.dataset.step < 5);
   const local = isLocal(SETUP.redirect_uri || chosenRedirect);
   const own = (SETUP.redirect_uri || chosenRedirect) === ownRedirect();
   if (el('connect-step-3')) el('connect-step-3').hidden = own;
+  if (el('connect-step-own')) el('connect-step-own').hidden = !own;
   el('paste-label').firstChild.textContent = !own ? 'Address from the browser bar' : `Didn\u2019t come back to a \u201c${NAME} connected\u201d page? Paste the address the browser ended on`;
   if (el('connect-step-3') && !local && !own && SETUP.paste_hint) el('connect-step-3').textContent = SETUP.paste_hint;
 }
@@ -229,7 +231,8 @@ const PILL = { not_configured: ['Not connected', 'off'], needs_login: ['Sign in 
 const live = () => S && ['connected', 'syncing', 'rate_limited'].includes(S.status);
 function connLine() {
   const st = S.status, su = S.setup || {};
-  if (st === 'not_configured') return su.keys_saved ? `Keys saved. Connect with ${NAME} in step 5.` : 'Set up below so Health can show your data.';
+  if (st === 'not_configured') return !su.keys_saved ? 'Set up below so Health can show your data.'
+    : su.keys_verified === 'invalid' ? `${NAME} did not accept the saved keys. Replace them in step 4.` : `Keys saved. Connect with ${NAME} in step 5.`;
   if (st === 'needs_login') return S.error || `${NAME} ended the sign-in. Connect again in step 5 to keep syncing.`;
   if (st === 'syncing') {
     const p = su.progress;
@@ -269,7 +272,7 @@ function render() {
   el('setup').hidden = !setup;
   if (setup && SETUP) {
     renderSetup();
-    if (!el('setup').dataset.opened) { el('setup').dataset.opened = '1'; showStep(su.keys_saved ? 5 : 1); }
+    if (!el('setup').dataset.opened) { el('setup').dataset.opened = '1'; showStep(!su.keys_saved ? 1 : su.keys_verified === 'invalid' ? 4 : 5); }
   }
 }
 

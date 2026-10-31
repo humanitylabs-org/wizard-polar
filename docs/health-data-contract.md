@@ -6,22 +6,39 @@ A **health front end** (the Health app) reads any number of connectors through t
 provider itself. This mirrors the money stack: Money reads `wizard.bank-connection/1` from SimpleFIN, Monarch or
 Teller; Health reads `wizard.health-data/1` from WHOOP and any later connector.
 
-The same file lives in every connector repo and in `wizard-health/docs/`. Change them together; the sections
-"Load on other scales" and "Provider mappings" below are additive (`wizard.health-data/1`).
+The same file lives in both repos (`wizard-whoop/docs/` and `wizard-health/docs/`). Change both together.
 
 ## Discovery
 
 - A connector declares `provides: [health-data, <provider>-health-data]` in `wizard.md`.
 - A front end declares `uses: [health-data]`. The App Manager reads that as the `health-data` spot, links the
   front end's network to **every** installed app that provides it, and writes the endpoint it granted into the
-  front end's `/wizard/grants.json` (`provider_endpoints`).
+  front end's `/wizard/grants.json` (`provider_endpoints`, one per spot; newer App Managers also list every
+  provider in `provider_endpoints_all`).
 - The front end probes each candidate's `GET /api/status`. A reply with `"contract": "wizard.health-data/1"` is a
   source; the reply names itself (`source.id`, `source.name`, `source.app_path`), so a new connector needs no code
-  change in the front end. Candidates come from, in order: `grants.json` endpoints, the `HEALTH_SOURCES` env
-  (`id=http://host:port,...`), and the built-in list of known connectors (as Money keeps for bank connections).
+  change in the front end. Candidates come from, in order: `grants.json` `provider_endpoints_all` (every provider
+  of the spot: `{"slot:health-data": {"<app id>": "http://<host>:<port>"}}`), `grants.json` `provider_endpoints`
+  (one endpoint per spot, what older App Managers write), the `HEALTH_SOURCES` env (`id=http://host:port,...`),
+  and the built-in list of known connectors with their ports (`wizard-whoop` 8824, `wizard-oura` 8828,
+  `wizard-fitbit` 8830, `wizard-polar` 8832, `wizard-withings` 8834), as Money keeps for bank connections.
   An unreachable candidate is simply "not installed".
-- The App Manager writes one endpoint per spot grant. When two connectors fill the spot, the front end still
-  reaches both (both networks are linked) as long as each is in the built-in list or `HEALTH_SOURCES`.
+- Older App Managers write one endpoint per spot grant. When two connectors fill the spot, the front end still
+  reaches both (both networks are linked) through the built-in list or `HEALTH_SOURCES`; App Managers with
+  `provider_endpoints_all` need neither.
+
+## Several sources (front end behaviour)
+
+- The owner picks one **main source** when two or more are connected (saved by the front end, server-side). Until
+  then the main source is the first connected one in this order: WHOOP, Oura, Fitbit, Polar, Withings, then any
+  other.
+- Per day the front end uses the main source's record. A metric the main source lacks that day (no `sleep`, no
+  `readiness.score`, a `null` number) is taken whole from the first other source that has it, and the front end
+  shows where it came from. A readiness the main source marks `pending` is not filled from elsewhere.
+- A connector without a readiness score at all says so in its status: `scales.readiness` left out, `null`, or
+  `{"label": ..., "available": false}` (a missing `available` means `true`), optionally also
+  `"provides": {"readiness": false}`. Its days carry `"readiness": null`. The front end then says it has no score
+  from that source (grey), may still show `hrv_ms` and `resting_hr_bpm`, and never derives a score from them.
 
 ## Transport and safety
 
@@ -51,7 +68,7 @@ The same file lives in every connector repo and in `wizard-health/docs/`. Change
   "scales": {
     "readiness": {"label": "Recovery", "min": 0, "max": 100},
     "sleep_score": {"label": "Sleep performance", "min": 0, "max": 100},
-    "load": {"label": "Strain", "min": 0, "max": 21}
+    "load": {"label": "Strain", "min": 0, "max": 21, "scale_max": 21}
   }
 }
 ```
@@ -63,6 +80,20 @@ The same file lives in every connector repo and in `wizard-health/docs/`. Change
   account). A front end that sees a different `dataset` drops what it holds from that source and re-reads.
 - `scales` tells the front end what to call things and how to draw them. A front end shows `load.label`
   (WHOOP "Strain", Garmin "Training load", Oura "Activity") and never assumes a provider's scale.
+- `scales.load` (and every `load` in the days) may carry, additively:
+  - `scale_max`: the top of the load scale the front end judges effort on (WHOOP `21`). Without it the front end
+    uses `max`. For an open-ended scale (`max: null`, e.g. Active Zone Minutes) it is the top of the drawing scale.
+    A front end that sets activity targets from the recovery band takes WHOOP's guidance as fractions of the scale
+    (Ready 14/21-18/21, So-so 10/21-14/21, Run down under 10/21 of `scale_max`, "a bit much" up to 3/21 above), so
+    WHOOP's own numbers stay 14-18, 10-14 and under 10.
+  - `targets`: the provider's own target per readiness band, `{"high": [lo, hi], "medium": [lo, hi], "low": [0, hi]}`
+    on the load's own scale. When present the front end uses these instead of the fractions.
+  - `over_margin`: how far above a target's top is still "a bit much" (beyond it: "too much"), on the same scale.
+    Without it: 3/21 of `scale_max`.
+  - `unit`: the short unit of the value (`"min"`). A load with a numeric `max` reads "out of `max`"; an open-ended
+    one reads as its `label` ("34 active zone minutes").
+  A day's `load` may leave these out when `scales.load` has them; the front end takes them from `scales.load`.
+  A load with no `scale_max`, no `max` and no `targets` gets no activity target (no colour), never a guessed one.
 - A connector may add its own fields (the WHOOP app adds its setup state); front ends ignore unknown fields.
 
 ## `GET /api/days`
@@ -117,7 +148,7 @@ Reply:
     "score": 81, "efficiency_pct": 90, "respiratory_rate": 15.4, "need_h": 8.4,
     "naps": [ {"start": "...", "end": "...", "asleep_h": 0.4} ]
   },
-  "load": {"value": 12.4, "max": 21, "label": "Strain"},
+  "load": {"value": 12.4, "max": 21, "scale_max": 21, "label": "Strain"},
   "calories_kcal": 2410,
   "energy_kj": 10083,
   "avg_hr_bpm": 68,
@@ -125,7 +156,7 @@ Reply:
   "steps": null,
   "workouts": [
     {"id": "b2f...", "sport": "Running", "start": "...", "end": "...", "minutes": 42,
-     "load": {"value": 9.8, "max": 21, "label": "Strain"},
+     "load": {"value": 9.8, "max": 21, "scale_max": 21, "label": "Strain"},
      "avg_hr_bpm": 148, "max_hr_bpm": 176, "calories_kcal": 512, "energy_kj": 2142, "distance_m": 7210,
      "zones_min": [0.5, 3.2, 10.1, 18.4, 9.1, 0.7]}
   ],
@@ -144,33 +175,16 @@ Rules:
   `scored`, `pending` (not scored yet), `unscorable`.
 - `sleep` is the main sleep that ended on `date`; `sleep.naps` lists shorter sleeps. Hours are decimal hours;
   `asleep_h` excludes awake time. `sleep.score` is the provider's sleep score or performance, 0-100.
-- `load` is the day's effort on the provider's own scale; `load.max` and `load.label` repeat `scales.load`.
-  `load.scale_max` (additive) is the top of the scale Health's activity targets are written for; see below.
+- `load` is the day's effort on the provider's own scale; `load.max`, `load.label` and the optional `scale_max`,
+  `targets` and `unit` repeat `scales.load`.
 - `calories_kcal` is the day's total energy; `energy_kj` is the same in kilojoules when the provider reports kJ.
 - `workouts[].zones_min` is minutes in heart-rate zones 0-5 (or `null`).
 - `extras` holds provider-specific fields under the provider's own key (`extras.whoop`, `extras.oura`...). Front
   ends may show them but never depend on them.
 
-## Load on other scales (additive)
-
-Health judges activity against that day's recovery with WHOOP's 0-21 strain targets (Ready 14-18, So-so 10-14,
-Run down under 10). A source whose load is on another scale says so in two fields, on `scales.load` and on every
-`load` object:
-
-- `scale_max`: the top of the scale `load.value` is on. `21` means the value is already on Health's 0-21 scale
-  (WHOOP natively, or a connector's documented 0-21 equivalent) and the WHOOP targets apply as they are. Any other
-  number means the value is on the source's own scale; Health scales its targets by `scale_max / 21` unless the
-  source sends `targets`.
-- `targets` (optional): `{"high": [lo, hi], "medium": [lo, hi], "low": [0, hi]}` on the source's own scale, keyed
-  by readiness band, when a straight `scale_max / 21` scaling would be wrong.
-- `native` (optional): the provider's own number when `value` is an equivalent, e.g.
-  `{"value": 96.4, "label": "Cardio load (TRIMP)", "unit": "TRIMP"}`. Front ends may show it; they never judge it.
-- `formula` (optional, on `scales.*`): the id of the documented mapping in "Provider mappings".
-
-A source with no readiness score (`readiness: null` every day) leaves recovery empty; Health shows "no score" and
-greys activity matching. Connectors never invent a readiness score.
-
 ## Provider mappings
+
+Additive notes: each connector documents here how it maps its provider onto this contract.
 
 ### Polar (`wizard-polar`, AccessLink v3)
 
