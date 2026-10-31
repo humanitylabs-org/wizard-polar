@@ -1,0 +1,27 @@
+{
+  "schema": 3,
+  "component": "wizard-ui-appearance-v1",
+  "origin_repo": "https://github.com/humanitylabs-org/wizard-os",
+  "revision": "625bfa54db6a2c47175422c60eacfa73cc5ad7d8",
+  "source_thread": "wizard_1791807054943_dc70b2bccb22",
+  "license": "GPL-3.0-only",
+  "modified": false,
+  "files": {
+    "style/tokens.css": {
+      "destination": "web/wizard-tokens.css",
+      "sha256": "fdb2b9a39a2b2b4893a5f3f3d13db4e685097dcdd55037ebb9d102ffccdedca1"
+    },
+    "style/ui.css": {
+      "destination": "web/wizard-ui.css",
+      "sha256": "49631d641fffdd87ad4fc6945c6a7f42dc1f486382a302a0aed767584e3966ae"
+    },
+    "style/boot.js": {
+      "destination": "web/boot.js",
+      "sha256": "105fead61e4c55d3d2512391f3dac8bb213fad5cee4ef81e14ed3a1177d8ed3b"
+    },
+    "style/sheet.js": {
+      "destination": "web/wizard-sheet.js",
+      "sha256": "fbec58efa89921d2aed824b75c617c38c67e8f767e06ed8dd3b65b2e1f06178a"
+    }
+  }
+}

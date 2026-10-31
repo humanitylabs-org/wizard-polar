@@ -1,0 +1,29 @@
+{
+  "name": "Polar",
+  "id": "wizard-polar",
+  "wizard_type": "external",
+  "available": true,
+  "short_desc": "External: connect Polar so Health and your agent get Nightly Recharge, sleep, activity and training (read-only). Needs your own free Polar AccessLink API client.",
+  "author": "Humanity Labs",
+  "port": 8832,
+  "categories": [
+    "network"
+  ],
+  "description": "Connect your Polar with a guided setup inside the app. Needs your own developer credentials: a free Polar AccessLink API client you create on admin.polaraccesslink.com with your Polar Flow account (the app shows every value to copy). The app keeps a private synced copy and offers it read-only to other apps on this box through the health-data contract; the Health app shows readiness from Nightly Recharge, sleep, activity and training. Keys and sign-in stay in the app.",
+  "tipi_version": 1,
+  "version": "0.1.0",
+  "source": "https://github.com/oscarhenrycollins/wizard-polar",
+  "exposable": false,
+  "supported_architectures": [
+    "amd64",
+    "arm64"
+  ],
+  "created_at": 1793437896000,
+  "updated_at": 1793437896000,
+  "dynamic_config": true,
+  "min_tipi_version": "4.8.0",
+  "uid": 1000,
+  "gid": 1000,
+  "form_fields": [],
+  "no_gui": false
+}
