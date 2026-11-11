@@ -1,7 +1,7 @@
 ---
 name: wizard-polar
 description: Use when the owner asks about his Polar connection, Polar setup or sync. Health questions go to Health.
-version: 0.1.1
+version: 0.1.2
 author: Humanity Labs
 license: GPL-3.0-only
 metadata:
